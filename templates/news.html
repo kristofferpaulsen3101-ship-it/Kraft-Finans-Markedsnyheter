@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Finansnyheter – Kraft Finans{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col">
+        <h1 class="page-title"><i class="bi bi-newspaper me-2 text-gold"></i>Finansnyheter</h1>
+        <p class="page-sub">Siste nyheter fra Reuters, CNBC, MarketWatch, E24 og Financial Times</p>
+      </div>
+      <div class="col-auto">
+        <span class="refresh-badge" id="newsTs">Laster...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container py-4">
+  <div class="row g-4">
+
+    <!-- Left: AI Summary + Email -->
+    <div class="col-lg-4">
+
+      <!-- AI Summary Card -->
+      <div class="ai-card mb-4">
+        <div class="ai-card-header">
+          <i class="bi bi-robot me-2"></i>AI-Markedsanalyse
+          <span class="ai-badge ms-2">Claude AI</span>
+        </div>
+        <div class="ai-card-body" id="aiSummaryBody">
+          <div class="text-center py-4 text-muted-light">
+            <i class="bi bi-magic fs-2 d-block mb-2 text-gold"></i>
+            Klikk "Generer analyse" for å lage en AI-oppsummering av dagens nyheter.
+          </div>
+        </div>
+        <div class="ai-card-footer">
+          <button class="btn btn-gold w-100" id="btnSummarize" onclick="generateSummary()">
+            <i class="bi bi-magic me-2"></i>Generer AI-analyse
+          </button>
+        </div>
+      </div>
+
+      <!-- Email Card -->
+      <div class="email-card" id="email">
+        <div class="email-card-header">
+          <i class="bi bi-envelope-check me-2"></i>Daglig Morgenrapport
+        </div>
+        <div class="email-card-body">
+          <p class="text-muted-light small mb-3">
+            Automatisk e-post kl. <strong class="text-white">08:00</strong> hver morgen med
+            markedsdata, nyheter og AI-analyse.
+          </p>
+          <div class="email-config-info mb-3">
+            <i class="bi bi-gear me-1 text-gold"></i>
+            Konfigurasjon i <code>.env</code> filen
+          </div>
+          <button class="btn btn-outline-gold w-100 mb-2" onclick="sendTestEmail()">
+            <i class="bi bi-send me-2"></i>Send testrapport nå
+          </button>
+          <div id="emailStatus" class="mt-2"></div>
+        </div>
+
+        <div class="email-schedule">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-clock text-gold"></i>
+            <div>
+              <div class="fw-600 small">Neste sending</div>
+              <div class="text-muted-light small" id="nextEmailTime">08:00 i morgen</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: News feed -->
+    <div class="col-lg-8">
+
+      <!-- Source filter -->
+      <div class="news-filter mb-3">
+        <button class="nf-btn active" data-source="all">Alle</button>
+        <button class="nf-btn" data-source="Reuters Business">Reuters</button>
+        <button class="nf-btn" data-source="CNBC Finance">CNBC</button>
+        <button class="nf-btn" data-source="MarketWatch">MarketWatch</button>
+        <button class="nf-btn" data-source="E24 Økonomi">E24</button>
+        <button class="nf-btn" data-source="Financial Times">FT</button>
+      </div>
+
+      <!-- News cards -->
+      <div id="newsContainer">
+        <div class="text-center py-5">
+          <div class="spinner-border text-gold mb-2"></div>
+          <div class="text-muted-light">Henter nyheter...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allArticles = [];
+let activeSource = "all";
+let currentSummary = null;
+
+async function loadNews() {
+  try {
+    const res  = await fetch("/api/news");
+    const json = await res.json();
+    allArticles = json.articles;
+    document.getElementById("newsTs").textContent = "Oppdatert " + json.ts;
+    renderNews();
+  } catch (e) {
+    document.getElementById("newsContainer").innerHTML =
+      '<div class="text-red text-center py-4">Feil ved henting av nyheter.</div>';
+  }
+}
+
+function renderNews() {
+  const items = activeSource === "all"
+    ? allArticles
+    : allArticles.filter(a => a.source === activeSource);
+
+  if (!items.length) {
+    document.getElementById("newsContainer").innerHTML =
+      '<div class="text-muted-light text-center py-4">Ingen nyheter fra valgt kilde.</div>';
+    return;
+  }
+
+  const html = items.map(a => `
+    <div class="news-card mb-3" data-source="${a.source}">
+      <div class="nc-source">
+        <span class="nc-flag">${a.flag}</span>
+        <span class="nc-src-name">${a.source}</span>
+        <span class="nc-date ms-auto">${a.published_fmt || formatNewsDate(a.published)}</span>
+      </div>
+      <h5 class="nc-title">
+        <a href="${a.link}" target="_blank" rel="noopener">${a.title}</a>
+      </h5>
+      <p class="nc-summary">${a.summary}</p>
+      <a href="${a.link}" target="_blank" rel="noopener" class="nc-readmore">
+        Les mer <i class="bi bi-box-arrow-up-right ms-1"></i>
+      </a>
+    </div>
+  `).join("");
+
+  document.getElementById("newsContainer").innerHTML = html;
+}
+
+async function generateSummary() {
+  const btn = document.getElementById("btnSummarize");
+  const body = document.getElementById("aiSummaryBody");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Analyserer...';
+  body.innerHTML = '<div class="text-center py-4 text-muted-light"><div class="spinner-border text-gold mb-2"></div><br>Claude analyserer nyhetsbildet...</div>';
+
+  try {
+    const res  = await fetch("/api/summarize", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({articles: allArticles.slice(0, 12)})
+    });
+    const json = await res.json();
+    currentSummary = json.summary;
+
+    if (currentSummary) {
+      body.innerHTML = `<div class="ai-summary-text">${currentSummary.replace(/\n/g, "<br>")}</div>`;
+    } else {
+      body.innerHTML = `
+        <div class="text-center py-3 text-muted-light">
+          <i class="bi bi-exclamation-circle me-1 text-gold"></i>
+          ANTHROPIC_API_KEY ikke konfigurert i .env filen.
+        </div>`;
+    }
+  } catch (e) {
+    body.innerHTML = '<div class="text-red py-2">Feil ved generering av analyse.</div>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Oppdater analyse';
+}
+
+async function sendTestEmail() {
+  const btn = document.querySelector('[onclick="sendTestEmail()"]');
+  const status = document.getElementById("emailStatus");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Sender...';
+  status.innerHTML = "";
+
+  try {
+    const res  = await fetch("/api/send-test-email", {method: "POST"});
+    const json = await res.json();
+    status.innerHTML = '<div class="alert-success-mini"><i class="bi bi-check-circle me-1"></i>E-post sendt!</div>';
+  } catch (e) {
+    status.innerHTML = '<div class="alert-error-mini"><i class="bi bi-x-circle me-1"></i>Sending feilet</div>';
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-send me-2"></i>Send testrapport nå';
+  setTimeout(() => { status.innerHTML = ""; }, 4000);
+}
+
+function formatNewsDate(published) {
+  if (!published) return "";
+  try {
+    const d = new Date(published);
+    return d.toLocaleString("nb-NO", {day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"});
+  } catch { return published.slice(0, 16); }
+}
+
+// Source filter
+document.querySelectorAll(".nf-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nf-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeSource = btn.dataset.source;
+    renderNews();
+  });
+});
+
+loadNews();
+setInterval(loadNews, 300000); // 5 min
+</script>
+{% endblock %}

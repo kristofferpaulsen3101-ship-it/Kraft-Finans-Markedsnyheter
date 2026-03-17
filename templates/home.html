@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Kraft Finans AS – Markedsportal{% endblock %}
+
+{% block content %}
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-overlay"></div>
+  <div class="hero-particles" id="heroParticles"></div>
+
+  <div class="container hero-content">
+    <div class="row justify-content-center text-center">
+      <div class="col-lg-8">
+        <!-- Kraft Finans logo -->
+        <div class="hero-logo mb-4">
+          <img src="/static/img/kraft-finans-logo.svg" alt="Kraft Finans" class="hero-real-logo">
+          <div class="hero-tagline mt-3">Investeringsrådgivning · Formuesforvaltning · Pensjon</div>
+        </div>
+
+        <h1 class="hero-title">Markedsportal</h1>
+        <p class="hero-subtitle">
+          Sanntidsdata fra verdens ledende børser, MSCI World i NOK og lokale valutaer,
+          samt AI-genererte finansnyhetsoppsummeringer — alt på ett sted.
+        </p>
+
+        <div class="hero-cta d-flex gap-3 justify-content-center flex-wrap mt-4">
+          <a href="/indekser" class="btn btn-hero-primary">
+            <i class="bi bi-graph-up-arrow me-2"></i>Se Markedsindekser
+          </a>
+          <a href="/nyheter" class="btn btn-hero-secondary">
+            <i class="bi bi-newspaper me-2"></i>Finansnyheter
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-scroll-indicator">
+    <i class="bi bi-chevron-down"></i>
+  </div>
+</section>
+
+<!-- Market Snapshot Cards -->
+<section class="snapshot-section py-5">
+  <div class="container">
+    <div class="section-header text-center mb-4">
+      <h2 class="section-title">Markedsoversikt</h2>
+      <p class="section-sub">Oppdateres automatisk hvert minutt</p>
+    </div>
+
+    <!-- Key indices highlight -->
+    <div class="row g-3 mb-4" id="heroCards">
+      <div class="col-12 text-center py-4">
+        <div class="spinner-border text-gold" role="status"></div>
+        <p class="text-muted-light mt-2">Laster markedsdata...</p>
+      </div>
+    </div>
+
+    <!-- Region summary row -->
+    <div class="row g-3" id="regionCards">
+    </div>
+
+    <div class="text-center mt-4">
+      <a href="/indekser" class="btn btn-outline-gold">
+        <i class="bi bi-table me-2"></i>Se alle indekser →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section py-5">
+  <div class="container">
+    <div class="row g-4 justify-content-center">
+
+      <div class="col-md-4">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-globe2"></i>
+          </div>
+          <h4>Globale Indekser</h4>
+          <p>Følg S&P 500, DAX, Nikkei, Oslo Børs og 20+ ledende indekser i sanntid — i lokal valuta og norske kroner.</p>
+          <a href="/indekser" class="feature-link">Åpne indekser <i class="bi bi-arrow-right"></i></a>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-robot"></i>
+          </div>
+          <h4>AI-Nyhetsanalyse</h4>
+          <p>Kunstig intelligens oppsummerer dagens viktigste finansnyheter fra Reuters, CNBC, E24 og Financial Times.</p>
+          <a href="/nyheter" class="feature-link">Les nyheter <i class="bi bi-arrow-right"></i></a>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="feature-card h-100">
+          <div class="feature-icon">
+            <i class="bi bi-envelope-check"></i>
+          </div>
+          <h4>Daglig E-postrapport</h4>
+          <p>Motta en profesjonell markedsoppsummering på e-post kl. 08:00 hver morgen, klar til dagens møter.</p>
+          <a href="/nyheter#email" class="feature-link">Konfigurer varsel <i class="bi bi-arrow-right"></i></a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const HERO_TICKERS = ["URTH", "^GSPC", "^GDAXI", "^OSEBX", "^N225", "^FTSE"];
+const REGIONS = ["Global", "USA", "Europa", "Norden", "Asia"];
+
+async function loadHomeData() {
+  try {
+    const res  = await fetch("/api/indices");
+    const json = await res.json();
+    renderHeroCards(json.data);
+    renderRegionCards(json.data);
+  } catch (e) {
+    console.error("Home data error:", e);
+  }
+}
+
+function renderHeroCards(data) {
+  const map = {};
+  data.forEach(d => map[d.ticker] = d);
+
+  const cards = HERO_TICKERS
+    .filter(t => map[t] && map[t].price)
+    .map(t => {
+      const d = map[t];
+      const up = d.change_pct >= 0;
+      return `
+        <div class="col-6 col-md-4 col-lg-2">
+          <div class="snapshot-card ${up ? 'up' : 'down'}">
+            <div class="sc-name">${d.name}</div>
+            <div class="sc-price">${fmtNum(d.price)} <span class="sc-ccy">${d.currency}</span></div>
+            <div class="sc-change ${up ? 'text-green' : 'text-red'}">
+              ${up ? '▲' : '▼'} ${Math.abs(d.change_pct).toFixed(2)}%
+            </div>
+            <div class="sc-nok text-muted-light">${fmtNum(d.price_nok, 0)} NOK</div>
+          </div>
+        </div>`;
+    }).join("");
+
+  document.getElementById("heroCards").innerHTML = cards ||
+    '<div class="col-12 text-center text-muted-light">Ingen data tilgjengelig</div>';
+}
+
+function renderRegionCards(data) {
+  const byRegion = {};
+  data.forEach(d => {
+    if (!byRegion[d.region]) byRegion[d.region] = [];
+    byRegion[d.region].push(d);
+  });
+
+  const html = REGIONS.map(reg => {
+    const items = (byRegion[reg] || []).filter(d => d.price);
+    if (!items.length) return "";
+    const ups = items.filter(d => d.change_pct > 0).length;
+    const total = items.length;
+    const avgChg = items.reduce((a, b) => a + b.change_pct, 0) / total;
+    const isUp = avgChg >= 0;
+    return `
+      <div class="col-md-4 col-lg-2dot4">
+        <div class="region-card ${isUp ? 'up' : 'down'}">
+          <div class="rc-header">
+            <span class="rc-name">${reg}</span>
+            <span class="rc-badge ${isUp ? 'badge-up' : 'badge-down'}">${isUp ? '▲' : '▼'} ${Math.abs(avgChg).toFixed(2)}%</span>
+          </div>
+          <div class="rc-detail">${ups}/${total} indekser opp</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  document.getElementById("regionCards").innerHTML = html;
+}
+
+loadHomeData();
+setInterval(loadHomeData, 60000);
+</script>
+{% endblock %}

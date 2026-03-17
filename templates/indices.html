@@ -1,0 +1,630 @@
+{% extends "base.html" %}
+{% block title %}Markedsindekser – Kraft Finans{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col">
+        <h1 class="page-title"><i class="bi bi-graph-up-arrow me-2 text-gold"></i>Markedsdata</h1>
+        <p class="page-sub">Live-data i lokal valuta og NOK — med valuta-effekt synliggjort</p>
+      </div>
+      <div class="col-auto d-flex align-items-center gap-3">
+        <span class="refresh-badge" id="lastUpdated">Laster...</span>
+        <div class="spinner-border spinner-border-sm text-gold d-none" id="loadSpinner"></div>
+      </div>
+    </div>
+
+    <!-- Sidefaner -->
+    <div class="page-tabs mt-3">
+      <button class="ptab active" id="tabIndices" onclick="switchTab('indices')">
+        <i class="bi bi-graph-up-arrow me-1"></i>Aksjeindekser
+      </button>
+      <button class="ptab" id="tabCommodities" onclick="switchTab('commodities')">
+        <i class="bi bi-droplet-half me-1"></i>Råvarer &amp; Valuta
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="container py-4">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       FANE 1 – INDEKSER
+  ══════════════════════════════════════════════════════════════ -->
+  <div id="panelIndices">
+
+    <!-- Region filter -->
+    <div class="region-tabs mb-3">
+      <button class="rtab active" data-region="all">Alle</button>
+      <button class="rtab" data-region="Global">🌍 Global</button>
+      <button class="rtab" data-region="USA">🇺🇸 USA</button>
+      <button class="rtab" data-region="Europa">🇪🇺 Europa</button>
+      <button class="rtab" data-region="Norden">🇳🇴 Norden</button>
+      <button class="rtab" data-region="Asia">🌏 Asia</button>
+      <button class="rtab" data-region="Asia/Pacific">🌏 Asia/Pacific</button>
+    </div>
+
+    <!-- Summary bar -->
+    <div class="summary-bar mb-4">
+      <div class="sb-item"><span class="sb-val" id="sbTotal">—</span><span class="sb-lbl">Indekser</span></div>
+      <div class="sb-item"><span class="sb-val text-green" id="sbUp">—</span><span class="sb-lbl">Opp</span></div>
+      <div class="sb-item"><span class="sb-val text-red" id="sbDown">—</span><span class="sb-lbl">Ned</span></div>
+      <div class="sb-item"><span class="sb-val" id="sbAvg">—</span><span class="sb-lbl">Snitt lokal</span></div>
+    </div>
+
+    <!-- Historisk graf -->
+    <div class="chart-panel mb-4" id="chartPanel" style="display:none">
+      <div class="chart-panel-header">
+        <div class="cp-info">
+          <span class="cp-name" id="cpName">—</span>
+          <span class="cp-price" id="cpPrice">—</span>
+          <span class="cp-change" id="cpChange">—</span>
+        </div>
+        <div class="cp-periods" id="cpPeriods">
+          <button class="pp active" data-period="1d">1D</button>
+          <button class="pp" data-period="1w">1U</button>
+          <button class="pp" data-period="1m">1M</button>
+          <button class="pp" data-period="ytd">YTD</button>
+          <button class="pp" data-period="1y">1Å</button>
+          <button class="pp" data-period="3y">3Å</button>
+          <button class="pp" data-period="5y">5Å</button>
+          <button class="pp" data-period="10y">10Å</button>
+        </div>
+        <button class="cp-close" onclick="closeChart()">✕</button>
+      </div>
+      <div class="chart-panel-body">
+        <div class="chart-loading" id="chartLoading">
+          <div class="spinner-border text-gold"></div><span>Henter historikk...</span>
+        </div>
+        <canvas id="priceChart" style="display:none"></canvas>
+      </div>
+      <div class="chart-panel-footer">
+        <span class="cf-item" id="cfHigh">Høy: —</span>
+        <span class="cf-item" id="cfLow">Lav: —</span>
+        <span class="cf-item" id="cfFirst">Start: —</span>
+        <span class="cf-item" id="cfPctTotal">Total: —</span>
+      </div>
+    </div>
+
+    <!-- Indeks-tabell -->
+    <div class="table-wrapper">
+      <table class="kf-table">
+        <thead>
+          <tr>
+            <th>Indeks</th>
+            <th>Region</th>
+            <th class="text-end">Kurs</th>
+            <!-- De to avkastningskolonnene -->
+            <th class="text-end col-local">% Lokal <span class="col-hint">i egen valuta</span></th>
+            <th class="text-end col-nok">% i NOK <span class="col-hint">for norsk investor</span></th>
+            <!-- Valuta-effekt: differansen -->
+            <th class="text-end col-fx">FX-effekt <span class="col-hint">= NOK minus lokal</span></th>
+            <th class="text-end">Valuta</th>
+          </tr>
+        </thead>
+        <tbody id="indexBody">
+          <tr><td colspan="7" class="text-center py-5">
+            <div class="spinner-border text-gold mb-2"></div>
+            <div class="text-muted-light">Henter markedsdata...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="text-muted-light text-center mt-3 small">
+      <i class="bi bi-info-circle me-1"></i>
+      Klikk på en rad for historisk kursutvikling · FX-effekt viser hvor mye valutabevegelsen alene bidro til avkastningen for en norsk investor
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       FANE 2 – RÅVARER & VALUTA
+  ══════════════════════════════════════════════════════════════ -->
+  <div id="panelCommodities" style="display:none">
+
+    <!-- Råvare-graf -->
+    <div class="chart-panel mb-4" id="comChartPanel" style="display:none">
+      <div class="chart-panel-header">
+        <div class="cp-info">
+          <span class="cp-name" id="comCpName">—</span>
+          <span class="cp-price" id="comCpPrice">—</span>
+          <span class="cp-change" id="comCpChange">—</span>
+        </div>
+        <div class="cp-periods" id="comCpPeriods">
+          <button class="pp active" data-period="1d">1D</button>
+          <button class="pp" data-period="1w">1U</button>
+          <button class="pp" data-period="1m">1M</button>
+          <button class="pp" data-period="ytd">YTD</button>
+          <button class="pp" data-period="1y">1Å</button>
+          <button class="pp" data-period="3y">3Å</button>
+          <button class="pp" data-period="5y">5Å</button>
+          <button class="pp" data-period="10y">10Å</button>
+        </div>
+        <button class="cp-close" onclick="closeComChart()">✕</button>
+      </div>
+      <div class="chart-panel-body">
+        <div class="chart-loading" id="comChartLoading">
+          <div class="spinner-border text-gold"></div><span>Henter historikk...</span>
+        </div>
+        <canvas id="comPriceChart" style="display:none"></canvas>
+      </div>
+      <div class="chart-panel-footer">
+        <span class="cf-item" id="comCfHigh">Høy: —</span>
+        <span class="cf-item" id="comCfLow">Lav: —</span>
+        <span class="cf-item" id="comCfFirst">Start: —</span>
+        <span class="cf-item" id="comCfPct">Total: —</span>
+      </div>
+    </div>
+
+    <!-- Kategori-filter råvarer -->
+    <div class="region-tabs mb-3">
+      <button class="ctab active" data-cat="all">Alle råvarer</button>
+      <button class="ctab" data-cat="Edelmetaller">🥇 Edelmetaller</button>
+      <button class="ctab" data-cat="Energi">🛢️ Energi</button>
+      <button class="ctab" data-cat="Industri">⚙️ Industri</button>
+      <button class="ctab" data-cat="Jordbruk">🌾 Jordbruk</button>
+    </div>
+
+    <!-- Råvare-tabell -->
+    <div class="table-wrapper mb-5">
+      <table class="kf-table">
+        <thead>
+          <tr>
+            <th>Råvare</th>
+            <th>Kategori</th>
+            <th class="text-end">Kurs (USD)</th>
+            <th class="text-end col-local">% i USD <span class="col-hint">råvarepris</span></th>
+            <th class="text-end col-nok">% i NOK <span class="col-hint">for norsk investor</span></th>
+            <th class="text-end col-fx">FX-effekt <span class="col-hint">USD/NOK bidrag</span></th>
+            <th class="text-end">Enhet</th>
+          </tr>
+        </thead>
+        <tbody id="comBody">
+          <tr><td colspan="7" class="text-center py-5">
+            <div class="spinner-border text-gold mb-2"></div>
+            <div class="text-muted-light">Henter råvaredata...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Valuta-seksjon -->
+    <div class="section-divider mb-3">
+      <span><i class="bi bi-currency-exchange me-2 text-gold"></i>Valutaer</span>
+    </div>
+
+    <!-- Valuta-gruppe-filter -->
+    <div class="region-tabs mb-3">
+      <button class="fxtab active" data-fxgroup="all">Alle</button>
+      <button class="fxtab" data-fxgroup="NOK-par">🇳🇴 NOK-par</button>
+      <button class="fxtab" data-fxgroup="Major">💱 Major</button>
+      <button class="fxtab" data-fxgroup="Norden">🌍 Norden</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="kf-table">
+        <thead>
+          <tr>
+            <th>Valutapar</th>
+            <th>Gruppe</th>
+            <th class="text-end">Kurs</th>
+            <th class="text-end">Forrige</th>
+            <th class="text-end col-local">Daglig endring</th>
+            <th class="text-end col-nok">% endring</th>
+          </tr>
+        </thead>
+        <tbody id="fxBody">
+          <tr><td colspan="6" class="text-center py-5">
+            <div class="spinner-border text-gold mb-2"></div>
+            <div class="text-muted-light">Henter valutadata...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="text-muted-light text-center mt-3 small">
+      <i class="bi bi-info-circle me-1"></i>
+      Klikk på en råvare for historisk kursutvikling · Data fra Yahoo Finance
+    </p>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let allIndices     = [];
+let allCommodities = [];
+let allFxPairs     = [];
+let activeRegion   = "all";
+let activeCat      = "all";
+let activeFxGroup  = "all";
+let activeTab      = "indices";
+
+let chartInstance    = null;
+let comChartInstance = null;
+let selectedTicker   = null;
+let selectedPeriod   = "1d";
+let selectedCcy      = "USD";
+let comSelectedTicker  = null;
+let comSelectedPeriod  = "1d";
+
+// ── Tab-bytte ─────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById("panelIndices").style.display     = tab === "indices"     ? "" : "none";
+  document.getElementById("panelCommodities").style.display = tab === "commodities" ? "" : "none";
+  document.getElementById("tabIndices").classList.toggle("active",    tab === "indices");
+  document.getElementById("tabCommodities").classList.toggle("active", tab === "commodities");
+  if (tab === "commodities" && !allCommodities.length) loadCommodities();
+}
+
+// ── INDEKSER ─────────────────────────────────────────────────────────────────
+async function loadIndices() {
+  document.getElementById("loadSpinner").classList.remove("d-none");
+  try {
+    const res  = await fetch("/api/indices");
+    const json = await res.json();
+    allIndices = json.data;
+    document.getElementById("lastUpdated").textContent = "Oppdatert " + json.ts;
+    renderIndexTable(activeRegion);
+    updateSummary();
+    if (selectedTicker) loadChart(selectedTicker, selectedPeriod);
+  } catch (e) {
+    document.getElementById("indexBody").innerHTML =
+      '<tr><td colspan="7" class="text-center text-red py-4">Feil ved henting av data.</td></tr>';
+  }
+  document.getElementById("loadSpinner").classList.add("d-none");
+}
+
+function renderIndexTable(region) {
+  const rows = allIndices.filter(d => region === "all" || d.region === region);
+  if (!rows.length) {
+    document.getElementById("indexBody").innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted-light py-4">Ingen indekser</td></tr>';
+    return;
+  }
+  document.getElementById("indexBody").innerHTML = rows.map(d => {
+    if (!d.price) return `
+      <tr class="table-row-error">
+        <td><span class="idx-name">${d.name}</span></td>
+        <td><span class="region-pill">${d.region}</span></td>
+        <td colspan="5" class="text-center text-muted-light fst-italic small">Ikke tilgjengelig</td>
+      </tr>`;
+    return buildIndexRow(d);
+  }).join("");
+
+  document.querySelectorAll(".clickable-row[data-type='index']").forEach(row => {
+    row.addEventListener("click", () => openChart(row.dataset.ticker, row.dataset.name, row.dataset.ccy));
+  });
+}
+
+function buildIndexRow(d) {
+  const lUp = d.change_pct >= 0, nUp = d.nok_pct >= 0, fPos = d.fx_effect >= 0;
+  const ls = d.change_pct >= 0 ? "+" : "", ns = d.nok_pct >= 0 ? "+" : "";
+  return `
+    <tr class="table-row clickable-row" data-type="index" data-ticker="${d.ticker}" data-name="${d.name}" data-ccy="${d.currency}">
+      <td>
+        <span class="idx-name">${d.name}</span>
+        ${d.region === "Global" ? '<span class="badge-msci ms-1">MSCI</span>' : ""}
+        <i class="bi bi-bar-chart-line ms-1 row-chart-icon"></i>
+      </td>
+      <td><span class="region-pill">${d.region}</span></td>
+      <td class="text-end fw-600">${fmtNum(d.price)} <small class="text-muted-light">${d.currency}</small></td>
+      <td class="text-end"><span class="ret-badge ${lUp ? 'ret-up' : 'ret-down'}">${ls}${d.change_pct.toFixed(2)}%</span></td>
+      <td class="text-end"><span class="ret-badge ${nUp ? 'ret-up' : 'ret-down'} ret-nok">${ns}${d.nok_pct.toFixed(2)}%</span></td>
+      <td class="text-end">${fxEffectBadge(d.fx_effect, d.currency)}</td>
+      <td class="text-end text-muted-light small">${d.currency}</td>
+    </tr>`;
+}
+
+function fxEffectBadge(fx, ccy) {
+  if (ccy === "NOK") return '<span class="fx-neutral">— NOK</span>';
+  const pos  = fx >= 0;
+  const sign = pos ? "+" : "";
+  const cls  = pos ? "fx-pos" : "fx-neg";
+  return `<span class="fx-badge ${cls}">${sign}${fx.toFixed(2)}%</span>`;
+}
+
+function updateSummary() {
+  const visible = activeRegion === "all"
+    ? allIndices.filter(d => d.price)
+    : allIndices.filter(d => d.region === activeRegion && d.price);
+  const ups  = visible.filter(d => d.change_pct > 0).length;
+  const dns  = visible.filter(d => d.change_pct < 0).length;
+  const avg  = visible.length ? visible.reduce((a, b) => a + b.change_pct, 0) / visible.length : 0;
+  document.getElementById("sbTotal").textContent = visible.length;
+  document.getElementById("sbUp").textContent    = ups;
+  document.getElementById("sbDown").textContent  = dns;
+  document.getElementById("sbAvg").innerHTML     =
+    `<span class="${avg >= 0 ? 'text-green':'text-red'}">${avg >= 0 ?'+':''}${avg.toFixed(2)}%</span>`;
+}
+
+// ── RÅVARER ───────────────────────────────────────────────────────────────────
+async function loadCommodities() {
+  try {
+    const [cRes, fRes] = await Promise.all([
+      fetch("/api/commodities"),
+      fetch("/api/currencies"),
+    ]);
+    const cJson = await cRes.json();
+    const fJson = await fRes.json();
+    allCommodities = cJson.data;
+    allFxPairs     = fJson.data;
+    renderComTable(activeCat);
+    renderFxTable(activeFxGroup);
+  } catch (e) {
+    document.getElementById("comBody").innerHTML =
+      '<tr><td colspan="7" class="text-center text-red py-4">Feil ved henting.</td></tr>';
+  }
+}
+
+function renderComTable(cat) {
+  const rows = allCommodities.filter(d => cat === "all" || d.category === cat);
+  document.getElementById("comBody").innerHTML = rows.map(d => {
+    if (!d.price) return `
+      <tr class="table-row-error">
+        <td><span class="idx-name">${d.name}</span></td>
+        <td><span class="cat-pill">${d.category}</span></td>
+        <td colspan="5" class="text-center text-muted-light fst-italic small">Ikke tilgjengelig</td>
+      </tr>`;
+    const uUp = d.change_pct >= 0, nUp = d.nok_pct >= 0;
+    const us  = d.change_pct >= 0 ? "+" : "", ns = d.nok_pct >= 0 ? "+" : "";
+    return `
+      <tr class="table-row clickable-row" data-type="commodity" data-ticker="${d.ticker}" data-name="${d.name}" data-ccy="USD">
+        <td>
+          <span class="idx-name">${d.name}</span>
+          <i class="bi bi-bar-chart-line ms-1 row-chart-icon"></i>
+        </td>
+        <td><span class="cat-pill cat-${d.category.replace(/[^a-z]/gi,'_')}">${d.category}</span></td>
+        <td class="text-end fw-600">${fmtNum(d.price)}</td>
+        <td class="text-end"><span class="ret-badge ${uUp?'ret-up':'ret-down'}">${us}${d.change_pct.toFixed(2)}%</span></td>
+        <td class="text-end"><span class="ret-badge ${nUp?'ret-up':'ret-down'} ret-nok">${ns}${d.nok_pct.toFixed(2)}%</span></td>
+        <td class="text-end">${fxEffectBadge(d.fx_effect, "USD")}</td>
+        <td class="text-end text-muted-light small">${d.unit}</td>
+      </tr>`;
+  }).join("");
+
+  document.querySelectorAll(".clickable-row[data-type='commodity']").forEach(row => {
+    row.addEventListener("click", () =>
+      openComChart(row.dataset.ticker, row.dataset.name));
+  });
+}
+
+function renderFxTable(group) {
+  const rows = allFxPairs.filter(d => group === "all" || d.group === group);
+  document.getElementById("fxBody").innerHTML = rows.map(d => {
+    if (!d.rate) return `
+      <tr class="table-row-error">
+        <td><span class="idx-name">${d.name}</span></td>
+        <td><span class="region-pill">${d.group}</span></td>
+        <td colspan="4" class="text-center text-muted-light fst-italic small">Ikke tilgjengelig</td>
+      </tr>`;
+    const up  = d.change_pct >= 0;
+    const sgn = d.change_pct >= 0 ? "+" : "";
+    return `
+      <tr class="table-row">
+        <td><span class="idx-name">${d.name}</span></td>
+        <td><span class="region-pill">${d.group}</span></td>
+        <td class="text-end fw-600 font-mono">${d.rate.toFixed(4)}</td>
+        <td class="text-end text-muted-light font-mono">${d.prev.toFixed(4)}</td>
+        <td class="text-end ${up?'text-green':'text-red'} fw-600">${d.change >= 0 ? "+" : ""}${d.change.toFixed(4)}</td>
+        <td class="text-end"><span class="ret-badge ${up?'ret-up':'ret-down'}">${sgn}${d.change_pct.toFixed(2)}%</span></td>
+      </tr>`;
+  }).join("");
+}
+
+// ── Graf – Indekser ────────────────────────────────────────────────────────────
+function openChart(ticker, name, ccy) {
+  selectedTicker = ticker; selectedCcy = ccy;
+  document.querySelectorAll(".clickable-row[data-type='index']").forEach(r => r.classList.remove("row-selected"));
+  const sel = document.querySelector(`.clickable-row[data-ticker="${ticker}"][data-type="index"]`);
+  if (sel) sel.classList.add("row-selected");
+  document.getElementById("cpName").textContent = name;
+  const panel = document.getElementById("chartPanel");
+  panel.style.display = "block";
+  panel.scrollIntoView({behavior: "smooth", block: "nearest"});
+  document.querySelectorAll("#cpPeriods .pp").forEach(b => b.classList.remove("active"));
+  document.querySelector('#cpPeriods .pp[data-period="1d"]').classList.add("active");
+  selectedPeriod = "1d";
+  loadChart(ticker, "1d");
+}
+
+function closeChart() {
+  document.getElementById("chartPanel").style.display = "none";
+  document.querySelectorAll(".clickable-row[data-type='index']").forEach(r => r.classList.remove("row-selected"));
+  selectedTicker = null;
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+}
+
+async function loadChart(ticker, period) {
+  document.getElementById("chartLoading").style.display = "flex";
+  document.getElementById("priceChart").style.display   = "none";
+  try {
+    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}`);
+    const json = await res.json();
+    if (json.error || !json.prices.length) {
+      document.getElementById("chartLoading").innerHTML =
+        `<span class="text-muted-light">Ingen historisk data (${period})</span>`;
+      return;
+    }
+    const up   = json.change_pct >= 0;
+    const clr  = up ? "#00c878" : "#ff4d4d";
+    const sign = up ? "+" : "";
+    const d    = allIndices.find(x => x.ticker === ticker);
+    if (d && d.price) document.getElementById("cpPrice").textContent = fmtNum(d.price) + " " + selectedCcy;
+    document.getElementById("cpChange").innerHTML =
+      `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% (${periodLabel(period)})</span>`;
+    drawChart("priceChart", "chartLoading", json, clr, chartInstance, inst => chartInstance = inst, selectedCcy);
+    const valid = json.prices.filter(p=>p!==null);
+    document.getElementById("cfHigh").textContent  = "Høy: " + fmtNum(Math.max(...valid));
+    document.getElementById("cfLow").textContent   = "Lav: " + fmtNum(Math.min(...valid));
+    document.getElementById("cfFirst").textContent = "Start: " + fmtNum(json.first);
+    document.getElementById("cfPctTotal").innerHTML =
+      `Total: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+  } catch (e) {
+    document.getElementById("chartLoading").innerHTML = '<span class="text-red">Feil</span>';
+  }
+}
+
+// ── Graf – Råvarer ─────────────────────────────────────────────────────────────
+function openComChart(ticker, name) {
+  comSelectedTicker = ticker;
+  document.querySelectorAll(".clickable-row[data-type='commodity']").forEach(r => r.classList.remove("row-selected"));
+  const sel = document.querySelector(`.clickable-row[data-ticker="${ticker}"][data-type="commodity"]`);
+  if (sel) sel.classList.add("row-selected");
+  document.getElementById("comCpName").textContent = name;
+  const panel = document.getElementById("comChartPanel");
+  panel.style.display = "block";
+  panel.scrollIntoView({behavior: "smooth", block: "nearest"});
+  document.querySelectorAll("#comCpPeriods .pp").forEach(b => b.classList.remove("active"));
+  document.querySelector('#comCpPeriods .pp[data-period="1d"]').classList.add("active");
+  comSelectedPeriod = "1d";
+  loadComChart(ticker, "1d");
+}
+
+function closeComChart() {
+  document.getElementById("comChartPanel").style.display = "none";
+  document.querySelectorAll(".clickable-row[data-type='commodity']").forEach(r => r.classList.remove("row-selected"));
+  comSelectedTicker = null;
+  if (comChartInstance) { comChartInstance.destroy(); comChartInstance = null; }
+}
+
+async function loadComChart(ticker, period) {
+  document.getElementById("comChartLoading").style.display = "flex";
+  document.getElementById("comPriceChart").style.display   = "none";
+  try {
+    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}`);
+    const json = await res.json();
+    if (json.error || !json.prices.length) {
+      document.getElementById("comChartLoading").innerHTML =
+        '<span class="text-muted-light">Ingen historisk data</span>';
+      return;
+    }
+    const up   = json.change_pct >= 0;
+    const clr  = up ? "#00c878" : "#ff4d4d";
+    const sign = up ? "+" : "";
+    const d    = allCommodities.find(x => x.ticker === ticker);
+    if (d && d.price) document.getElementById("comCpPrice").textContent = fmtNum(d.price) + " USD";
+    document.getElementById("comCpChange").innerHTML =
+      `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% (${periodLabel(period)})</span>`;
+    drawChart("comPriceChart", "comChartLoading", json, clr, comChartInstance, inst => comChartInstance = inst, "USD");
+    const valid = json.prices.filter(p=>p!==null);
+    document.getElementById("comCfHigh").textContent  = "Høy: " + fmtNum(Math.max(...valid));
+    document.getElementById("comCfLow").textContent   = "Lav: " + fmtNum(Math.min(...valid));
+    document.getElementById("comCfFirst").textContent = "Start: " + fmtNum(json.first);
+    document.getElementById("comCfPct").innerHTML =
+      `Total: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+  } catch (e) {
+    document.getElementById("comChartLoading").innerHTML = '<span class="text-red">Feil</span>';
+  }
+}
+
+// ── Felles Chart.js renderer ──────────────────────────────────────────────────
+function drawChart(canvasId, loadingId, json, color, existingChart, setChart, ccy) {
+  const canvas = document.getElementById(canvasId);
+  canvas.style.display = "block";
+  document.getElementById(loadingId).style.display = "none";
+  if (existingChart) existingChart.destroy();
+  const ctx  = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 300);
+  grad.addColorStop(0, color + "33");
+  grad.addColorStop(1, color + "00");
+  const inst = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: json.labels,
+      datasets: [{
+        data: json.prices, borderColor: color, backgroundColor: grad,
+        borderWidth: 2, fill: true, tension: 0.3,
+        pointRadius: json.prices.length > 100 ? 0 : 2,
+        pointHoverRadius: 5, pointHoverBackgroundColor: color, spanGaps: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: {duration: 400},
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          backgroundColor: "#0D2040", borderColor: color, borderWidth: 1,
+          titleColor: "#aac4e8", bodyColor: "#fff", bodyFont: {size: 13, weight: "bold"},
+          padding: 10,
+          callbacks: {
+            title: c => c[0].label,
+            label: c => " " + fmtNum(c.parsed.y) + " " + ccy,
+          }
+        }
+      },
+      scales: {
+        x: { grid: {color:"rgba(255,255,255,0.04)"}, ticks: {color:"#6b82a0", font:{size:11}, maxTicksLimit: 10} },
+        y: { position:"right", grid: {color:"rgba(255,255,255,0.04)"}, ticks: {color:"#6b82a0", font:{size:11}, callback: v => fmtNum(v,0)} }
+      },
+      interaction: {mode:"index", intersect:false},
+    }
+  });
+  setChart(inst);
+}
+
+function periodLabel(p) {
+  return {"1d":"i dag","1w":"siste uke","1m":"siste mnd","ytd":"hittil i år",
+          "1y":"1 år","3y":"3 år","5y":"5 år","10y":"10 år"}[p] || p;
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+document.querySelectorAll(".rtab").forEach(btn =>
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".rtab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeRegion = btn.dataset.region;
+    renderIndexTable(activeRegion);
+    updateSummary();
+  })
+);
+document.querySelectorAll(".ctab").forEach(btn =>
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".ctab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeCat = btn.dataset.cat;
+    renderComTable(activeCat);
+  })
+);
+document.querySelectorAll(".fxtab").forEach(btn =>
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".fxtab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeFxGroup = btn.dataset.fxgroup;
+    renderFxTable(activeFxGroup);
+  })
+);
+document.querySelectorAll("#cpPeriods .pp").forEach(btn =>
+  btn.addEventListener("click", () => {
+    if (!selectedTicker) return;
+    document.querySelectorAll("#cpPeriods .pp").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedPeriod = btn.dataset.period;
+    loadChart(selectedTicker, selectedPeriod);
+  })
+);
+document.querySelectorAll("#comCpPeriods .pp").forEach(btn =>
+  btn.addEventListener("click", () => {
+    if (!comSelectedTicker) return;
+    document.querySelectorAll("#comCpPeriods .pp").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    comSelectedPeriod = btn.dataset.period;
+    loadComChart(comSelectedTicker, comSelectedPeriod);
+  })
+);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadIndices();
+setInterval(loadIndices, 60000);
+setInterval(() => {
+  if (activeTab === "commodities") loadCommodities();
+}, 60000);
+</script>
+{% endblock %}
