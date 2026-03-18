@@ -567,7 +567,8 @@ def api_history(ticker):
                         prices_nok = []
                         for p, fx in zip(hist["Close"], fx_aligned):
                             try:
-                                prices_nok.append(round(float(p) * float(fx), 2))
+                                val = float(p) * float(fx)
+                                prices_nok.append(None if math.isnan(val) else round(val, 2))
                             except Exception:
                                 prices_nok.append(None)
                         valid_nok = [p for p in prices_nok if p is not None]
