@@ -94,7 +94,7 @@ FX_PAIRS = [
 # FX til NOK for konvertering av indekser og råvarer
 FX_MAP = {
     "USD": "USDNOK=X", "EUR": "EURNOK=X", "GBP": "GBPNOK=X",
-    "JPY": "JPYNOK=X", "HKD": "HKDNOK=X", "CNY": "CNYNOK=X",
+    "JPY": "JPYNOK=X", "HKD": "HKDNOK=X", "CNY": None,
     "AUD": "AUDNOK=X", "SEK": "SEKNOK=X", "DKK": "DKKNOK=X",
     "CHF": "CHFNOK=X", "SGD": "SGDNOK=X", "NOK": None,
 }
