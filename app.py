@@ -100,11 +100,12 @@ FX_MAP = {
 }
 
 NEWS_FEEDS = [
-    {"name": "Reuters Business", "url": "https://feeds.reuters.com/reuters/businessNews",       "flag": "🌍"},
-    {"name": "CNBC Finance",     "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html", "flag": "🇺🇸"},
-    {"name": "MarketWatch",      "url": "https://feeds.marketwatch.com/marketwatch/topstories/","flag": "🇺🇸"},
-    {"name": "E24 Økonomi",      "url": "https://e24.no/rss/",                                  "flag": "🇳🇴"},
-    {"name": "Financial Times",  "url": "https://www.ft.com/?format=rss",                       "flag": "🌍"},
+    {"name": "E24 Økonomi",      "url": "https://e24.no/rss/",                                       "flag": "🇳🇴"},
+    {"name": "DN Næringsliv",    "url": "https://www.dn.no/rss",                                      "flag": "🇳🇴"},
+    {"name": "CNBC Finance",     "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html",       "flag": "🇺🇸"},
+    {"name": "MarketWatch",      "url": "https://feeds.marketwatch.com/marketwatch/topstories/",      "flag": "🇺🇸"},
+    {"name": "BBC Business",     "url": "https://feeds.bbci.co.uk/news/business/rss.xml",             "flag": "🌍"},
+    {"name": "Investing.com",    "url": "https://www.investing.com/rss/news.rss",                     "flag": "🌍"},
 ]
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
@@ -344,9 +345,9 @@ def _fetch_news():
         except Exception as e:
             log.error(f"Feed {feed_cfg['name']}: {e}")
 
-    # Sorter nyeste først, filtrer bort artikler eldre enn 3 dager
+    # Sorter nyeste først, filtrer bort artikler eldre enn 7 dager
     from datetime import timezone
-    cutoff = (datetime.now(timezone.utc).timestamp()) - (3 * 24 * 3600)
+    cutoff = (datetime.now(timezone.utc).timestamp()) - (7 * 24 * 3600)
     items  = [a for a in items if a["dt_ts"] == 0 or a["dt_ts"] >= cutoff]
     items.sort(key=lambda x: x["dt_ts"], reverse=True)
     return items[:25]
