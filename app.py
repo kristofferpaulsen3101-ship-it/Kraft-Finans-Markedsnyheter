@@ -516,6 +516,7 @@ def api_summarize():
 @app.route("/api/history/<path:ticker>")
 def api_history(ticker):
     period = request.args.get("period", "1y")
+    ccy    = request.args.get("ccy", "NOK").upper()
     PERIOD_MAP = {
         "1d":  ("1d",  "5m"),
         "1w":  ("5d",  "1h"),
@@ -551,9 +552,35 @@ def api_history(ticker):
         chg    = last - first
         chg_p  = (chg / first * 100) if first else 0
 
+        # NOK-historikk
+        prices_nok     = None
+        nok_change_pct = None
+        if ccy != "NOK":
+            fx_tkr = FX_MAP.get(ccy)
+            if fx_tkr:
+                try:
+                    fx_hist = (yf.Ticker(fx_tkr).history(start=f"{date.today().year}-01-01", interval=interval)
+                               if yf_period == "ytd"
+                               else yf.Ticker(fx_tkr).history(period=yf_period, interval=interval))
+                    if not fx_hist.empty:
+                        fx_aligned = fx_hist["Close"].reindex(hist.index, method="ffill")
+                        prices_nok = []
+                        for p, fx in zip(hist["Close"], fx_aligned):
+                            try:
+                                prices_nok.append(round(float(p) * float(fx), 2))
+                            except Exception:
+                                prices_nok.append(None)
+                        valid_nok = [p for p in prices_nok if p is not None]
+                        if valid_nok:
+                            f_nok, l_nok = valid_nok[0], valid_nok[-1]
+                            nok_change_pct = round((l_nok / f_nok - 1) * 100, 2) if f_nok else 0
+                except Exception as e:
+                    log.error(f"FX history {fx_tkr}: {e}")
+
         return jsonify({
-            "ticker": ticker, "period": period,
+            "ticker": ticker, "period": period, "ccy": ccy,
             "labels": labels, "prices": prices,
+            "prices_nok": prices_nok, "nok_change_pct": nok_change_pct,
             "change": round(chg, 2), "change_pct": round(chg_p, 2),
             "first": first, "last": last,
         })

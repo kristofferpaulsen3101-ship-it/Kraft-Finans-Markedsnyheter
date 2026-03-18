@@ -84,7 +84,8 @@
         <span class="cf-item" id="cfHigh">Høy: —</span>
         <span class="cf-item" id="cfLow">Lav: —</span>
         <span class="cf-item" id="cfFirst">Start: —</span>
-        <span class="cf-item" id="cfPctTotal">Total: —</span>
+        <span class="cf-item" id="cfPctTotal">Lokal: —</span>
+        <span class="cf-item" id="cfPctNok" style="display:none">NOK: —</span>
       </div>
     </div>
 
@@ -154,7 +155,8 @@
         <span class="cf-item" id="comCfHigh">Høy: —</span>
         <span class="cf-item" id="comCfLow">Lav: —</span>
         <span class="cf-item" id="comCfFirst">Start: —</span>
-        <span class="cf-item" id="comCfPct">Total: —</span>
+        <span class="cf-item" id="comCfPct">Lokal: —</span>
+        <span class="cf-item" id="comCfPctNok">NOK: —</span>
       </div>
     </div>
 
@@ -446,7 +448,7 @@ async function loadChart(ticker, period) {
   document.getElementById("chartLoading").style.display = "flex";
   document.getElementById("priceChart").style.display   = "none";
   try {
-    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}`);
+    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}&ccy=${encodeURIComponent(selectedCcy)}`);
     const json = await res.json();
     if (json.error || !json.prices.length) {
       document.getElementById("chartLoading").innerHTML =
@@ -458,15 +460,32 @@ async function loadChart(ticker, period) {
     const sign = up ? "+" : "";
     const d    = allIndices.find(x => x.ticker === ticker);
     if (d && d.price) document.getElementById("cpPrice").textContent = fmtNum(d.price) + " " + selectedCcy;
-    document.getElementById("cpChange").innerHTML =
-      `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% (${periodLabel(period)})</span>`;
+
+    let changeHtml = `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% lokal</span>`;
+    if (json.nok_change_pct != null) {
+      const nUp = json.nok_change_pct >= 0;
+      const ns  = nUp ? "+" : "";
+      changeHtml += ` &nbsp;|&nbsp; <span class="${nUp?'text-green':'text-red'}">${ns}${json.nok_change_pct.toFixed(2)}% NOK</span>`;
+    }
+    changeHtml += ` <span class="text-muted-light">(${periodLabel(period)})</span>`;
+    document.getElementById("cpChange").innerHTML = changeHtml;
+
     drawChart("priceChart", "chartLoading", json, clr, chartInstance, inst => chartInstance = inst, selectedCcy);
     const valid = json.prices.filter(p=>p!==null);
     document.getElementById("cfHigh").textContent  = "Høy: " + fmtNum(Math.max(...valid));
     document.getElementById("cfLow").textContent   = "Lav: " + fmtNum(Math.min(...valid));
     document.getElementById("cfFirst").textContent = "Start: " + fmtNum(json.first);
     document.getElementById("cfPctTotal").innerHTML =
-      `Total: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+      `Lokal: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+    const nokEl = document.getElementById("cfPctNok");
+    if (json.nok_change_pct != null) {
+      const nUp = json.nok_change_pct >= 0;
+      const ns  = nUp ? "+" : "";
+      nokEl.innerHTML = `NOK: <span class="${nUp?'text-green':'text-red'}">${ns}${json.nok_change_pct.toFixed(2)}%</span>`;
+      nokEl.style.display = "";
+    } else {
+      nokEl.style.display = "none";
+    }
   } catch (e) {
     document.getElementById("chartLoading").innerHTML = '<span class="text-red">Feil</span>';
   }
@@ -499,7 +518,7 @@ async function loadComChart(ticker, period) {
   document.getElementById("comChartLoading").style.display = "flex";
   document.getElementById("comPriceChart").style.display   = "none";
   try {
-    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}`);
+    const res  = await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}&ccy=USD`);
     const json = await res.json();
     if (json.error || !json.prices.length) {
       document.getElementById("comChartLoading").innerHTML =
@@ -511,15 +530,29 @@ async function loadComChart(ticker, period) {
     const sign = up ? "+" : "";
     const d    = allCommodities.find(x => x.ticker === ticker);
     if (d && d.price) document.getElementById("comCpPrice").textContent = fmtNum(d.price) + " USD";
-    document.getElementById("comCpChange").innerHTML =
-      `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% (${periodLabel(period)})</span>`;
+
+    let changeHtml = `<span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}% USD</span>`;
+    if (json.nok_change_pct != null) {
+      const nUp = json.nok_change_pct >= 0;
+      const ns  = nUp ? "+" : "";
+      changeHtml += ` &nbsp;|&nbsp; <span class="${nUp?'text-green':'text-red'}">${ns}${json.nok_change_pct.toFixed(2)}% NOK</span>`;
+    }
+    changeHtml += ` <span class="text-muted-light">(${periodLabel(period)})</span>`;
+    document.getElementById("comCpChange").innerHTML = changeHtml;
+
     drawChart("comPriceChart", "comChartLoading", json, clr, comChartInstance, inst => comChartInstance = inst, "USD");
     const valid = json.prices.filter(p=>p!==null);
     document.getElementById("comCfHigh").textContent  = "Høy: " + fmtNum(Math.max(...valid));
     document.getElementById("comCfLow").textContent   = "Lav: " + fmtNum(Math.min(...valid));
     document.getElementById("comCfFirst").textContent = "Start: " + fmtNum(json.first);
     document.getElementById("comCfPct").innerHTML =
-      `Total: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+      `Lokal: <span class="${up?'text-green':'text-red'}">${sign}${json.change_pct.toFixed(2)}%</span>`;
+    if (json.nok_change_pct != null) {
+      const nUp = json.nok_change_pct >= 0;
+      const ns  = nUp ? "+" : "";
+      document.getElementById("comCfPctNok").innerHTML =
+        `NOK: <span class="${nUp?'text-green':'text-red'}">${ns}${json.nok_change_pct.toFixed(2)}%</span>`;
+    }
   } catch (e) {
     document.getElementById("comChartLoading").innerHTML = '<span class="text-red">Feil</span>';
   }
